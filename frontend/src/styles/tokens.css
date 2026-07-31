@@ -1,0 +1,165 @@
+/*
+ * 设计令牌，1:1 沿用 docs/prototype.html 的配色体系（六套皮肤全量搬过来）。
+ *
+ * 与原型的唯一差异：原型从 fonts.googleapis.com 加载 Sora / DM Mono。
+ * 正式产品移除了这个 CDN 引用 —— 一个存私人照片的局域网服务，
+ * 不应该在每次打开页面时都向 Google 发一次请求（既泄露使用习惯，
+ * 也让离线环境下字体加载失败）。改用系统字体栈，需要品牌字体时
+ * 把 woff2 自托管到 /fonts 并在这里补 @font-face。
+ */
+
+:root,
+html[data-theme='nebula'] {
+  --bg: #0D0918;
+  --bg2: #150E26;
+  --glass: rgba(24, 16, 42, .76);
+  --raise: rgba(255, 255, 255, .06);
+  --raise2: rgba(255, 255, 255, .13);
+  --line: rgba(255, 255, 255, .10);
+  --line2: rgba(255, 255, 255, .22);
+  --text: #F4EFFF;
+  --muted: #A093C2;
+  --a1: #FF4D8D;
+  --a2: #46E3D5;
+  --a3: #FFC24B;
+  --aur1: rgba(255, 77, 141, .40);
+  --aur2: rgba(70, 227, 213, .28);
+  --aur3: rgba(122, 92, 255, .34);
+  --shadow: rgba(0, 0, 0, .85);
+}
+
+html[data-theme='abyss'] {
+  --bg: #04121B;
+  --bg2: #0A2130;
+  --glass: rgba(8,32,46,.78);
+  --raise: rgba(255,255,255,.06);
+  --raise2: rgba(255,255,255,.13);
+  --line: rgba(255,255,255,.10);
+  --line2: rgba(255,255,255,.22);
+  --text: #E9F7FF;
+  --muted: #7FA8BD;
+  --a1: #3CC7F0;
+  --a2: #5BE6B0;
+  --a3: #FFD166;
+  --aur1: rgba(60,199,240,.34);
+  --aur2: rgba(91,230,176,.24);
+  --aur3: rgba(18,86,134,.5);
+  --shadow: rgba(0,0,0,.85);
+}
+
+html[data-theme='graphite'] {
+  --bg: #101011;
+  --bg2: #1A1A1C;
+  --glass: rgba(26,26,28,.82);
+  --raise: rgba(255,255,255,.055);
+  --raise2: rgba(255,255,255,.12);
+  --line: rgba(255,255,255,.10);
+  --line2: rgba(255,255,255,.2);
+  --text: #F0EFEC;
+  --muted: #94918B;
+  --a1: #FF7A45;
+  --a2: #8ED9C6;
+  --a3: #E5C05C;
+  --aur1: rgba(255,122,69,.26);
+  --aur2: rgba(142,217,198,.16);
+  --aur3: rgba(120,118,130,.22);
+  --shadow: rgba(0,0,0,.85);
+}
+
+html[data-theme='moss'] {
+  --bg: #0B1410;
+  --bg2: #132019;
+  --glass: rgba(19,32,25,.8);
+  --raise: rgba(255,255,255,.06);
+  --raise2: rgba(255,255,255,.13);
+  --line: rgba(255,255,255,.10);
+  --line2: rgba(255,255,255,.2);
+  --text: #EDF6EC;
+  --muted: #8FAE95;
+  --a1: #E8734C;
+  --a2: #7BD48A;
+  --a3: #E3C56A;
+  --aur1: rgba(232,115,76,.28);
+  --aur2: rgba(123,212,138,.24);
+  --aur3: rgba(30,90,64,.45);
+  --shadow: rgba(0,0,0,.85);
+}
+
+html[data-theme='oled'] {
+  --bg: #000000;
+  --bg2: #0A0A0A;
+  --glass: rgba(9,9,9,.88);
+  --raise: rgba(255,255,255,.05);
+  --raise2: rgba(255,255,255,.12);
+  --line: rgba(255,255,255,.13);
+  --line2: rgba(255,255,255,.26);
+  --text: #FFFFFF;
+  --muted: #8B8B8B;
+  --a1: #FF375F;
+  --a2: #00E5A0;
+  --a3: #FFB400;
+  --aur1: rgba(255,55,95,.18);
+  --aur2: rgba(0,229,160,.13);
+  --aur3: rgba(70,70,70,.28);
+  --shadow: rgba(0,0,0,1);
+}
+
+html[data-theme='daylight'] {
+  --bg: #F2F0F6;
+  --bg2: #FFFFFF;
+  --glass: rgba(255, 255, 255, .84);
+  --raise: rgba(20, 12, 40, .045);
+  --raise2: rgba(20, 12, 40, .1);
+  --line: rgba(20, 12, 40, .11);
+  --line2: rgba(20, 12, 40, .2);
+  --text: #191325;
+  --muted: #6C6480;
+  --a1: #DC2E6B;
+  --a2: #0C9E96;
+  --a3: #B07E00;
+  --aur1: rgba(220, 46, 107, .14);
+  --aur2: rgba(12, 158, 150, .13);
+  --aur3: rgba(122, 92, 255, .12);
+  --shadow: rgba(25, 15, 45, .18);
+}
+
+:root {
+  --sans: 'PingFang SC', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /*
+   * 应用外壳恒等于一屏，滚动一律发生在内部容器里。
+   * 不锁住的话，任何一次 scrollIntoView / 输入框聚焦 都可能把整个外壳推走，
+   * 底部的标签栏就会跟着跑进跑出。
+   */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--text);
+  background: var(--bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--a2);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+button,
+input {
+  font-family: inherit;
+  color: inherit;
+}

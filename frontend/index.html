@@ -1,0 +1,24 @@
+<!doctype html>
+<!--
+  data-theme 的默认值写死在这里，用户选过的主题由 main.ts 在挂载前覆盖。
+  不用内联脚本提前写入，是因为 CSP 是 script-src 'self'，内联脚本会被拦掉
+  （见 SecurityConfig.CONTENT_SECURITY_POLICY）。代价是切到浅色主题的用户
+  会看到一帧深色，可以接受；放开 'unsafe-inline' 换这一帧不划算。
+-->
+<html lang="zh-CN" data-theme="nebula">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <!-- 私人相册不该被搜索引擎或浏览器预取行为碰到 -->
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="referrer" content="same-origin" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <title>拾光 · 局域网媒体库</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

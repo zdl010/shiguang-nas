@@ -1,0 +1,30 @@
+target/
+dist/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+# Vite 直接输出到后端静态目录，产物不入库
+src/main/resources/static/*
+!src/main/resources/static/.gitkeep
+
+# 打包临时产物
+packaging/build/
+
+# 助手/IDE 的本地配置，不属于项目
+.claude/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# 绝不能入库：本地实例的密钥、配置、数据
+*.db
+*.db-wal
+*.db-shm
+secret.key
+config.json
+local-data/

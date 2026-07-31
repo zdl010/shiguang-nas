@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: shiguang-nas
+
+  # Java 21 虚拟线程。媒体服务器会有大量长时间挂着的 Range 请求（一个人拖进度条
+  # 就能同时开几十个连接），传统线程池会被这类慢连接打穿。虚拟线程让我们用同步阻塞
+  # 的写法拿到同样的伸缩性，因此本项目不需要 WebFlux。
+  threads:
+    virtual:
+      enabled: true
+
+  servlet:
+    multipart:
+      # 分片上传每片 5MB，这里留出余量。真正的大文件是靠分片而不是靠调大这个值。
+      max-file-size: 16MB
+      max-request-size: 20MB
+      file-size-threshold: 1MB
+
+  autoconfigure:
+    exclude:
+      # 数据源由 DataConfig 手工构造（要设 SQLite 的 WAL / busy_timeout）
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      # 必须排除：不排除的话 Spring Boot 会自动建一个内存用户 user + 随机密码，
+      # 并把它装进全局 AuthenticationManager。本项目的认证完全走自己的 users 表，
+      # 多出来这么一个隐形账号纯粹是风险（日志里还会明文打出密码）。
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
+server:
+  # 需求第 3 条：同局域网的手机和 PC 都要能访问，必须监听全部网卡
+  address: 0.0.0.0
+  port: 18888
+
+  # 前面没有反向代理，绝不能信任 X-Forwarded-* ——
+  # 否则攻击者可以随手伪造来源 IP，按 IP 的限流和审计直接失效
+  forward-headers-strategy: none
+
+  error:
+    # 错误响应里不能出现堆栈、异常类名和内部路径，这些都是攻击者的情报
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
+
+  servlet:
+    session:
+      timeout: 7d
+      cookie:
+        name: SHIGUANG_SESSION
+        http-only: true          # JS 读不到会话 Cookie，XSS 无法直接窃取会话
+        same-site: strict        # 挡住跨站请求携带会话，配合 CSRF token 双保险
+        path: /
+        # 跟着 TLS 开关走。开了 HTTPS 却不设 secure，Cookie 仍会在
+        # 明文回落时被发出去，等于白加密。
+        secure: ${shiguang.tls.enabled:false}
+
+  # 隐藏服务端指纹，少给一点版本信息
+  tomcat:
+    max-swallow-size: -1
+    remoteip:
+      # 显式留空，确认没有启用任何代理头解析
+      protocol-header:
+      remote-ip-header:
+
+  compression:
+    enabled: true
+    # 图片和视频本身已压缩，再压一遍纯属浪费 CPU
+    mime-types: application/json,text/html,text/css,application/javascript,text/plain
+    min-response-size: 1KB
+
+shiguang:
+  version: 0.1.0
+  # 自签 TLS。默认关闭，理由见 config/TlsConfig 的类注释。
+  # 共享网络（合租 / 公司 / 宿舍）里强烈建议打开：
+  #   java -jar shiguang-nas.jar --shiguang.tls.enabled=true
+  tls:
+    enabled: false
+  # 无头服务器部署时用 --shiguang.open-browser=false --shiguang.tray.enabled=false
+  open-browser: true
+  tray:
+    enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.shiguang.nas: INFO
+    # 关掉 Spring Security 的 DEBUG，它会把请求头（含 Cookie）打进日志
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %-42logger{40} : %msg%n"

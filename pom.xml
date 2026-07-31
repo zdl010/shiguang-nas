@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.0.7</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.shiguang</groupId>
+  <artifactId>shiguang-nas</artifactId>
+  <version>0.1.0</version>
+  <name>shiguang-nas</name>
+  <description>拾光 NAS - 局域网私有媒体库</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <sqlite.version>3.53.2.1</sqlite.version>
+    <javacpp.version>1.5.13</javacpp.version>
+    <ffmpeg.version>8.0.1-1.5.13</ffmpeg.version>
+    <!--
+      原生库只打当前平台，由下面的 profile 按 os.name / os.arch 覆盖。
+      千万别改用 org.bytedeco:ffmpeg-platform —— 那个会把五个平台的原生库
+      全拉进来，包体直接多 100MB 以上。
+    -->
+    <javacpp.platform>UNSET</javacpp.platform>
+  </properties>
+
+  <!--
+    依赖策略：最小攻击面。每新增一个运行时依赖都要在此说明理由。
+    禁止引入：ORM 框架、限流框架、二维码库、校验框架 —— 这些能力已用 JDK/Spring 内置实现。
+  -->
+  <dependencies>
+    <!-- Web 容器 + JSON。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- HikariCP + JdbcClient。全部 SQL 手写，不引 ORM。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!-- 会话固定防护 / CSRF / 安全响应头 / 认证过滤链。安全核心，绝不手写。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+
+    <!-- SQLite 驱动。jar 内自带三平台 native lib，不影响 jpackage 分发。 -->
+    <dependency>
+      <groupId>org.xerial</groupId>
+      <artifactId>sqlite-jdbc</artifactId>
+      <version>${sqlite.version}</version>
+    </dependency>
+
+        <!--
+      ffmpeg：缩略图、封面帧、HEIC 解码、音视频元数据的唯一来源。
+      靠它砍掉了 Thumbnailator / TwelveMonkeys / metadata-extractor 三个库，
+      而那三个加起来也解不了 HEIC 和 HEVC —— 纯 Java 世界里没有 HEVC 解码器，
+      而 HEIC/HEVC 正是 iPhone 的默认录制格式（需求第 4 条：文件只来自手机上传）。
+
+      选 bytedeco 而不是自己下静态二进制的三个理由：
+      1. Apple Silicon 没有可靠的静态 ffmpeg 分发源（evermeet 只有 x86_64，
+         osxexperts 的 arm64 包会 404/503），bytedeco 有 macosx-arm64
+      2. 体积更小：每平台 19-29MB，静态二进制是 75MB
+      3. 授权更干净：其构建带 enable-version3 但**没有** enable-gpl（即 LGPL），
+         而 johnvansickle / BtbN 的构建都是 enable-gpl（含 x264/x265）
+
+      jar 里同时带 ffmpeg / ffprobe 可执行文件，所以调用方式仍是命令行
+      （见 media/FfmpegLocator），不用碰 JNI API。
+      已知限制：没有 libx264/libx265，H.264 编码只有 libopenh264 和
+      h264_videotoolbox(仅 macOS)。只做缩略图和封面帧用不到编码。
+    -->
+    <dependency>
+      <groupId>org.bytedeco</groupId>
+      <artifactId>ffmpeg</artifactId>
+      <version>${ffmpeg.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.bytedeco</groupId>
+      <artifactId>ffmpeg</artifactId>
+      <version>${ffmpeg.version}</version>
+      <classifier>${javacpp.platform}</classifier>
+    </dependency>
+
+    <!-- JavaCPP 的 Loader：负责把上面那个 jar 里的原生库和可执行文件解出来 -->
+    <dependency>
+      <groupId>org.bytedeco</groupId>
+      <artifactId>javacpp</artifactId>
+      <version>${javacpp.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.bytedeco</groupId>
+      <artifactId>javacpp</artifactId>
+      <version>${javacpp.version}</version>
+      <classifier>${javacpp.platform}</classifier>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>shiguang-nas</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- jpackage 需要一个可执行 jar，但不要分层解压 -->
+          <mainClass>com.shiguang.nas.ShiguangNasApplication</mainClass>
+        </configuration>
+      </plugin>
+
+      <!--
+        依赖漏洞扫描：mvn -Psecurity verify
+        用官方 OSS Index / NVD 数据源，不引入运行时依赖。
+      -->
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      按当前构建机的 os.name / os.arch 选原生库 classifier。
+      jpackage 本来就不能交叉编译，三平台产物靠 CI matrix 分别构建，
+      所以"只打当前平台"和发布流程是自洽的。
+
+      交叉构建（比如在 macOS 上为 Linux 准备依赖）用：
+        mvn -Djavacpp.platform=linux-x86_64 ...
+    -->
+    <profile>
+      <id>platform-macos-arm64</id>
+      <activation>
+        <os><family>mac</family><arch>aarch64</arch></os>
+      </activation>
+      <properties><javacpp.platform>macosx-arm64</javacpp.platform></properties>
+    </profile>
+    <profile>
+      <id>platform-macos-x86_64</id>
+      <activation>
+        <os><family>mac</family><arch>x86_64</arch></os>
+      </activation>
+      <properties><javacpp.platform>macosx-x86_64</javacpp.platform></properties>
+    </profile>
+    <profile>
+      <id>platform-linux-x86_64</id>
+      <activation>
+        <os><name>linux</name><arch>amd64</arch></os>
+      </activation>
+      <properties><javacpp.platform>linux-x86_64</javacpp.platform></properties>
+    </profile>
+    <profile>
+      <id>platform-linux-arm64</id>
+      <activation>
+        <os><name>linux</name><arch>aarch64</arch></os>
+      </activation>
+      <properties><javacpp.platform>linux-arm64</javacpp.platform></properties>
+    </profile>
+    <profile>
+      <id>platform-windows-x86_64</id>
+      <activation>
+        <os><family>windows</family><arch>amd64</arch></os>
+      </activation>
+      <properties><javacpp.platform>windows-x86_64</javacpp.platform></properties>
+    </profile>
+
+    <profile>
+      <id>security-scan</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>12.1.0</version>
+            <configuration>
+              <failBuildOnCVSS>7</failBuildOnCVSS>
+              <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
+            </configuration>
+            <executions>
+              <execution>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
