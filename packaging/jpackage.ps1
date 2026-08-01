@@ -48,7 +48,12 @@ else {
 Write-Host '==> 构建后端 jar'
 Push-Location $root
 try {
-    & $mvn -q -B clean package
+    # SKIP_TESTS=1：CI 前一步已显式跑过测试，不必跑两遍。默认仍然跑。
+    if ($env:SKIP_TESTS -eq '1') {
+        & $mvn -q -B clean package -DskipTests
+    } else {
+        & $mvn -q -B clean package
+    }
     if ($LASTEXITCODE -ne 0) { throw 'mvn package 失败' }
 }
 finally { Pop-Location }

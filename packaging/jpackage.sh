@@ -68,8 +68,14 @@ else
 fi
 
 # ── 2. 后端 ────────────────────────────────────────────────────────────
+# SKIP_TESTS=1：CI 在前一步已经显式跑过测试并把结果打出来了，这里不必再跑一遍。
+# 默认（本地手动打包）仍然跑，免得有人一个 ./jpackage.sh 就把没测过的包发出去。
 echo "==> 构建后端 jar"
-"$MVN" -q -B clean package
+if [[ "${SKIP_TESTS:-0}" == "1" ]]; then
+  "$MVN" -q -B clean package -DskipTests
+else
+  "$MVN" -q -B clean package
+fi
 
 if [[ ! -f "$ROOT/target/$JAR_NAME" ]]; then
   echo "错误：target/$JAR_NAME 不存在。" >&2

@@ -107,13 +107,23 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends \
             libasound2t64 libpulse0 libxcb1 libxcb-shm0 libva2 libva-drm2 libdrm2
 
+      # 单独跑一次，让每个平台的测试结果在日志里看得见。
+      # 打包脚本用的是 mvn -q，测试通过时摘要会被压掉，只有失败才出声——
+      # 对发布流水线来说"没报错"不算证据，得能指着日志说这个平台跑了多少条。
+      - name: 测试（本平台）
+        run: mvn -B test
+
       - name: 打包（Unix）
         if: runner.os != 'Windows'
+        env:
+          SKIP_TESTS: '1'
         run: ./packaging/jpackage.sh
 
       - name: 打包（Windows）
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          SKIP_TESTS: '1'
         run: ./packaging/jpackage.ps1
 
       - uses: actions/upload-artifact@v4
