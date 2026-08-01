@@ -1,0 +1,4 @@
+# SQL 迁移必须是 LF。CRLF 会让语句切分和校验和在 Windows 上出错，
+# 见 SchemaMigrator.normalizeNewlines 的注释。
+*.sql text eol=lf
+*.sh  text eol=lf

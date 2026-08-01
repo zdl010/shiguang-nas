@@ -173,4 +173,39 @@ class SchemaMigratorTest {
             return versions;
         }
     }
+
+    /**
+     * CRLF 的迁移文件必须和 LF 切出完全一样的语句。
+     *
+     * <p>仓库里没有 .gitattributes 时，Windows 上 git 默认把 LF 换成 CRLF；
+     * 而 Java 正则的 {@code .} 不匹配 {@code \r}，会让 BEGIN...END 的判断失效，
+     * 触发器被从中间切断。这个坑只在 Windows 上现形，本机永远测不出来。
+     */
+    @Test
+    void CRLF与LF切出相同的语句() throws Exception {
+        String lf = new String(getClass().getResourceAsStream(
+                "/db/migration/V2__media_fts.sql").readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String crlf = lf.replace("\n", "\r\n");
+
+        var fromLf = SchemaMigrator.splitStatements(SchemaMigrator.normalizeNewlines(lf));
+        var fromCrlf = SchemaMigrator.splitStatements(SchemaMigrator.normalizeNewlines(crlf));
+
+        assertThat(fromCrlf).isEqualTo(fromLf);
+        // 触发器不能被切开：每条 BEGIN 都得有配对的 END
+        for (String st : fromLf) {
+            long begins = st.toUpperCase(java.util.Locale.ROOT).split("\\bBEGIN\\b", -1).length - 1;
+            long ends = st.toUpperCase(java.util.Locale.ROOT).split("\\bEND\\b", -1).length - 1;
+            assertThat(ends).as("语句里 BEGIN/END 必须配对: %s", st).isEqualTo(begins);
+        }
+    }
+
+    /** 校验和不能因为换行风格不同而变化，否则换台机器就报"迁移已被修改" */
+    @Test
+    void 校验和不受换行风格影响() {
+        String lf = "CREATE TABLE t(a);\nINSERT INTO t VALUES(1);\n";
+        assertThat(SchemaMigrator.normalizeNewlines(lf.replace("\n", "\r\n")))
+                .isEqualTo(SchemaMigrator.normalizeNewlines(lf));
+    }
+
 }

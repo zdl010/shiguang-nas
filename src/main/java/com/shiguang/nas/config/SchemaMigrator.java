@@ -146,7 +146,7 @@ public final class SchemaMigrator {
                 }
                 String sql;
                 try (var in = resource.getInputStream()) {
-                    sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                    sql = normalizeNewlines(new String(in.readAllBytes(), StandardCharsets.UTF_8));
                 }
                 migrations.add(new Migration(
                         Integer.parseInt(matcher.group(1)),
@@ -165,6 +165,29 @@ public final class SchemaMigrator {
      * 按分号切分语句，但跳过 {@code BEGIN ... END} 块内部的分号
      * （SQLite 的触发器体里带分号，直接切会把触发器切碎）。
      */
+
+    /**
+     * 把换行统一成 {@code \n}。
+     *
+     * <p>两个都必须修的理由：
+     *
+     * <p>1. <b>语句会被切错。</b>{@link #splitStatements} 用
+     * {@code .matches(".*\\bBEGIN\\b.*")} 判断触发器的起止，而 Java 正则里的
+     * {@code .} <b>不匹配 {@code \r}</b>（它算行终止符）。CRLF 的文件里
+     * {@code ...BEGIN\r} 就匹配不上，blockDepth 加不上去，触发器内部的分号
+     * 被当成语句结束，SQLite 收到半截 SQL 报 "incomplete input"。
+     *
+     * <p>2. <b>校验和会不一致。</b>仓库里没有 .gitattributes 时，Windows 上
+     * git 默认把 LF 换成 CRLF，同一个迁移文件在两个平台上算出的 SHA-256 不同，
+     * 于是换台机器就报"迁移文件已被修改"。归一之后校验和只取决于内容本身。
+     *
+     * <p>对本来就是 LF 的文件，这个函数不改变任何字节，因此已有数据库里
+     * 记录的校验和继续有效。
+     */
+    static String normalizeNewlines(String text) {
+        return text.indexOf('\r') < 0 ? text : text.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
     static List<String> splitStatements(String sql) {
         List<String> statements = new ArrayList<>();
         StringBuilder current = new StringBuilder();
