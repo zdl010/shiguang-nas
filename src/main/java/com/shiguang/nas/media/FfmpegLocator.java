@@ -53,6 +53,67 @@ public class FfmpegLocator {
         this.overrideDir = overrideDir;
     }
 
+
+    /**
+     * 开机自检：真的把 ffmpeg 跑一次。
+     *
+     * <p>光解压出可执行文件不代表它能运行。Linux 上 ffmpeg 链接了
+     * libdrm / libva / libasound 这些系统库，jar 里不捆（而且 x86_64 和 arm64
+     * 各自缺的还不一样），精简过的服务器镜像上多半没装。
+     *
+     * <p>不做这个自检的话，症状是：一切看起来正常，照片能传上去，
+     * 但缩略图永远是"处理中"，真正的原因埋在数据库 thumb_error 字段里，
+     * 普通用户没有任何线索。宁可在启动时喊一嗓子，把该装的包名直接告诉他。
+     *
+     * <p>失败不阻止启动：媒体库的浏览、上传、账号都还能用，只是没有缩略图。
+     */
+    @jakarta.annotation.PostConstruct
+    void selfCheck() {
+        try {
+            Process p = newProcess(java.util.List.of(ffmpeg().toString(), "-hide_banner", "-version"))
+                    .redirectErrorStream(true)
+                    .start();
+            p.getOutputStream().close();
+            String output = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                log.warn("ffmpeg 自检超时，缩略图可能无法生成");
+                return;
+            }
+            if (p.exitValue() != 0) {
+                // 有些失败（比如动态库缺失）会把原因写在 stderr，也有些什么都不输出，
+                // 所以退出码必须带上，否则用户看到的是一行空白
+                warnUnusable("退出码 " + p.exitValue()
+                        + (output.isBlank() ? "，没有任何输出" : "：" + output.strip()));
+                return;
+            }
+            log.info("ffmpeg 自检通过: {}", output.lines().findFirst().orElse("").strip());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            warnUnusable(e.getMessage() == null ? e.toString() : e.getMessage());
+        }
+    }
+
+    private void warnUnusable(String detail) {
+        log.warn("");
+        log.warn("╔══════════════════════════════════════════════════════════════╗");
+        log.warn("║  ffmpeg 跑不起来，缩略图和视频封面将无法生成                  ║");
+        log.warn("╚══════════════════════════════════════════════════════════════╝");
+        log.warn("  {}", detail == null ? "(无详情)" : detail.strip());
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("linux")) {
+            log.warn("");
+            log.warn("  Linux 上通常是缺系统库。装上这些就好：");
+            log.warn("    Debian/Ubuntu:  sudo apt install libasound2t64 libpulse0 libxcb1 \\");
+            log.warn("                        libxcb-shm0 libva2 libva-drm2 libdrm2");
+            log.warn("    Fedora/RHEL:    sudo dnf install alsa-lib pulseaudio-libs libxcb \\");
+            log.warn("                        libva libdrm");
+            log.warn("  （老版本 Ubuntu 上 libasound2t64 叫 libasound2）");
+        }
+        log.warn("");
+    }
+
     /** ffmpeg 可执行文件的绝对路径。首次调用可能触发解压，之后走缓存。 */
     public Path ffmpeg() {
         Path cached = ffmpeg;

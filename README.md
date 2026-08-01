@@ -78,13 +78,19 @@
   <img src="phone_profile.png" width="270" alt="扫码连接与设置" />
 </p>
 
-> **Linux 用户注意**：包里带了 ffmpeg，但它链接了系统的音频/图形库。
-> 精简过的服务器镜像上如果启动后缩略图一直生不出来，装一下就好：
+> **Linux 用户注意**：包里带了 ffmpeg，但它链接了系统的音频/图形库
+> （x86_64 和 arm64 各自缺的还不一样）。精简过的服务器镜像上装一下就好：
 >
 > ```bash
-> sudo apt install libasound2t64 libpulse0 libxcb1 libxcb-shm0   # Debian / Ubuntu
-> sudo dnf install alsa-lib pulseaudio-libs libxcb               # Fedora / RHEL
+> # Debian / Ubuntu（老版本上 libasound2t64 叫 libasound2）
+> sudo apt install libasound2t64 libpulse0 libxcb1 libxcb-shm0 libva2 libva-drm2 libdrm2
+>
+> # Fedora / RHEL
+> sudo dnf install alsa-lib pulseaudio-libs libxcb libva libdrm
 > ```
+>
+> 缺了会怎样：启动日志里会有一段醒目的警告，直接告诉你该装什么；
+> 其余功能照常，只是缩略图和视频封面生不出来。
 
 ### 首次启动要注意的三件事
 
