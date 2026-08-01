@@ -186,8 +186,16 @@ iOS 上还要去「设置 → 通用 → 关于本机 → 证书信任设置」�
 powershell -ExecutionPolicy Bypass -File packaging\jpackage.ps1  # Windows
 ```
 
-`jpackage` 不能交叉编译，每个平台的包必须在对应平台上构建，
-三平台产物由 `.github/workflows/release.yml` 的 matrix 分别产出。
+`jpackage` 不能交叉编译，每个平台的包必须在对应平台上构建。
+`.github/workflows/release.yml` 用 matrix 产出五个包：
+
+| 平台 | 产物 |
+|---|---|
+| Windows x64 | `ShiguangNAS-<ver>-windows-x86_64.zip` |
+| macOS Apple Silicon | `ShiguangNAS-<ver>-darwin-arm64.zip` |
+| macOS Intel | `ShiguangNAS-<ver>-darwin-x86_64.zip` |
+| Linux x64 | `ShiguangNAS-<ver>-linux-x86_64.tar.gz` |
+| Linux ARM64 | `ShiguangNAS-<ver>-linux-arm64.tar.gz` |
 
 <details>
 <summary>开发时分开跑</summary>

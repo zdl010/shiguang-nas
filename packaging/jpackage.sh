@@ -121,7 +121,10 @@ jpackage \
 
 # ── 5. 压成分发包 ──────────────────────────────────────────────────────
 OS_TAG="$(uname -s | tr '[:upper:]' '[:lower:]')"
+# Linux 的 uname -m 报 aarch64，macOS 报 arm64，是同一种架构的两个叫法。
+# 统一成 arm64，免得发布页上出现 darwin-arm64 和 linux-aarch64 两种写法。
 ARCH_TAG="$(uname -m)"
+[[ "$ARCH_TAG" == "aarch64" ]] && ARCH_TAG="arm64"
 BASENAME="$APP_NAME-$PROJECT_VERSION-$OS_TAG-$ARCH_TAG"
 
 cd "$DEST"

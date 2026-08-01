@@ -52,11 +52,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-latest       # x86_64
             target: linux-x86_64
+          # ubuntu-24.04-arm 已经正式可用（非 preview）。pom 里
+          # platform-linux-arm64 这个 profile 一直没有 job 会触发它。
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
           - os: macos-latest        # Apple Silicon
             target: darwin-arm64
-          - os: macos-13            # Intel
+          # 不能写 macos-13：那个镜像已经从 GitHub 托管 runner 里退役了。
+          # 它失败时 fail-fast: false 会让另外几个包照常产出，
+          # 于是发出去的 Release 会静悄悄少一个 Intel Mac 包。
+          - os: macos-15-intel
             target: darwin-x86_64
           - os: windows-latest
             target: windows-x86_64
@@ -114,11 +121,22 @@ jobs:
           body: |
             解压后双击启动器即可，不需要预装 Java。
 
-            **首次启动**
-            - Windows 会弹防火墙提示，必须勾选「专用网络」，否则手机访问不到
-            - 浏览器会自动打开；第一个注册的账号就是管理员
-            - 在共享网络（宿舍 / 办公室）里，建议先建好管理员再接入局域网
+            | 平台 | 下载 |
+            |---|---|
+            | Windows (x64) | `windows-x86_64.zip` |
+            | macOS (Apple Silicon) | `darwin-arm64.zip` |
+            | macOS (Intel) | `darwin-x86_64.zip` |
+            | Linux (x64) | `linux-x86_64.tar.gz` |
+            | Linux (ARM64) | `linux-arm64.tar.gz` |
 
-            **已知限制**
-            - macOS 包未签名公证，首次打开需右键 → 打开
-            - Windows 包未签名，会触发 SmartScreen，需点「更多信息 → 仍要运行」
+            **首次启动**
+            - 浏览器会自动打开，用 `admin` / `admin` 登录，系统会强制你立刻改一个复杂密码
+            - 初始密码是公开的，所以请**先启动、先改密码、再接入局域网**。
+              在改掉之前，服务端会拒绝除「改密码」以外的所有接口，闯进来的人翻不了照片
+            - 控制台会打印局域网地址（形如 `http://192.168.1.10:18888`），手机浏览器打开它，
+              也可以在「我的」页面扫二维码
+            - Windows 会弹防火墙提示，**必须勾选「专用网络」**，否则手机一定连不上
+
+            **未签名分发**
+            - macOS：提示"无法验证开发者"，右键点 `.app` → 打开 → 再点打开
+            - Windows：SmartScreen 拦截，点「更多信息」→「仍要运行」
