@@ -102,6 +102,35 @@ public class FfmpegLocator {
     }
 
 
+
+    /**
+     * 按 ffmpeg 二进制的要求配好一个 {@link ProcessBuilder}。
+     *
+     * <p><b>凡是要启动这些二进制的地方都必须走这里</b>，别自己 new ProcessBuilder。
+     * 原因藏在 ELF 的两个字段之间：ffmpeg 可执行文件带 {@code RUNPATH=$ORIGIN/}，
+     * 所以能找到紧挨着的 libavcodec、libavutil；但这两个库<b>自己没有 RUNPATH</b>，
+     * 而 {@code DT_RUNPATH} 按规范<b>不传递给间接依赖</b>（这正是它与已废弃的
+     * {@code DT_RPATH} 的区别）。于是链接器解析 libavcodec → libva 时手上没有
+     * 任何线索，报出 {@code libva.so.2: cannot open shared object file}——
+     * 而那个文件就躺在同一个目录里。
+     *
+     * <p>补一个 {@code LD_LIBRARY_PATH} 就够了。macOS 用
+     * {@code @rpath}/{@code @loader_path} 没有这个断链，Windows 默认搜 exe 同目录，
+     * 所以只有 Linux 需要，但设了对另外两个平台无害——它们不看这个变量。
+     */
+    public ProcessBuilder newProcess(java.util.List<String> command) {
+        ProcessBuilder builder = new ProcessBuilder(command);
+        Path dir = Path.of(command.get(0)).getParent();
+        if (dir != null) {
+            var env = builder.environment();
+            String existing = env.get("LD_LIBRARY_PATH");
+            env.put("LD_LIBRARY_PATH", existing == null || existing.isBlank()
+                    ? dir.toString()
+                    : dir + java.io.File.pathSeparator + existing);
+        }
+        return builder;
+    }
+
     /**
      * 从依赖里解出 ffmpeg / ffprobe 可执行文件。
      *

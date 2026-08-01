@@ -66,9 +66,7 @@ public class FfmpegRunner {
     }
 
     private Result run(List<String> command, Duration timeout) throws IOException {
-        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
-        addLibraryPath(builder, java.nio.file.Path.of(command.get(0)).getParent());
-        Process process = builder.start();
+        Process process = locator.newProcess(command).redirectErrorStream(true).start();
         // 子进程不需要输入，立刻关掉，避免它在等 stdin
         process.getOutputStream().close();
 
@@ -98,32 +96,6 @@ public class FfmpegRunner {
             throw new IOException("处理超时");
         }
         return new Result(process.exitValue(), collected.toString(StandardCharsets.UTF_8));
-    }
-
-    /**
-     * 把 ffmpeg 所在目录加进子进程的动态库搜索路径。
-     *
-     * <p>不加的话 Linux 上会报 {@code libva.so.2: cannot open shared object file}——
-     * 而那个文件明明就躺在同一个目录里。原因藏在 ELF 的两个字段之间：
-     * ffmpeg 可执行文件带 {@code RUNPATH=$ORIGIN/}，所以它能找到紧挨着的
-     * libavcodec、libavutil；但这两个库<b>自己没有 RUNPATH</b>，而
-     * {@code DT_RUNPATH} 按规范<b>不会传递给间接依赖</b>（这正是它和已废弃的
-     * {@code DT_RPATH} 的区别）。于是链接器解析 libavcodec → libva 时，
-     * 手上没有任何一条指向那个目录的线索。
-     *
-     * <p>macOS 用 {@code @rpath}/{@code @loader_path}，不存在这个断链，
-     * Windows 默认就搜 exe 所在目录。所以只有 Linux 需要这一手，
-     * 但设了对另外两个平台也无害——它们根本不看这个变量。
-     */
-    private static void addLibraryPath(ProcessBuilder builder, java.nio.file.Path dir) {
-        if (dir == null) {
-            return;
-        }
-        var env = builder.environment();
-        String existing = env.get("LD_LIBRARY_PATH");
-        env.put("LD_LIBRARY_PATH", existing == null || existing.isBlank()
-                ? dir.toString()
-                : dir + java.io.File.pathSeparator + existing);
     }
 
 }

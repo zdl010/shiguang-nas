@@ -111,8 +111,17 @@ class FfmpegLocatorTest {
         return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 
+    /**
+     * 起子进程一律经由 {@link FfmpegLocator#newProcess}，不要自己 new ProcessBuilder。
+     *
+     * <p>这条测试自己拼过一次 ProcessBuilder，于是绕开了 Locator 给 Linux 补的
+     * LD_LIBRARY_PATH——本机（macOS）照跑不误，一上 Linux CI 就报
+     * libva.so.2 找不到。测试和生产必须走同一条路，否则测试只能证明
+     * "在我的机器上没问题"。
+     */
     private static String run(String... command) throws Exception {
-        Process process = new ProcessBuilder(command)
+        Process process = new FfmpegLocator(sharedCache, null)
+                .newProcess(List.of(command))
                 .redirectErrorStream(true)
                 .start();
         String output = new String(process.getInputStream().readAllBytes());
