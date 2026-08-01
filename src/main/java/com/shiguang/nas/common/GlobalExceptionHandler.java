@@ -86,11 +86,46 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "请求方法不支持"));
     }
 
+    /**
+     * 客户端提前断开连接。
+     *
+     * <p><b>这不是故障，不该按错误记。</b>浏览器刷新、切走页面、网络抖动都会产生它；
+     * 视频拖进度条更是每拖一次就中断一个 Range 请求——按 ERROR 记完整堆栈的话，
+     * 正常使用几分钟就能把日志刷满，真正的错误反而被淹掉。
+     *
+     * <p>返回 void 是刻意的：连接已经没了，再往里写 500 的响应体没有意义，
+     * 只会在 Tomcat 里再引发一次写失败。
+     *
+     * <p>按<b>类型</b>而不是按消息文本判断：这个异常的消息由操作系统给出，
+     * 中文 Windows 上是"你的主机中的软件中止了一个已建立的连接"，
+     * 英文环境是 "Broken pipe" 或 "Connection reset by peer"，匹配文本必然漏。
+     */
+    @ExceptionHandler(org.apache.catalina.connector.ClientAbortException.class)
+    public void handleClientAbort(Exception ex, HttpServletRequest request) {
+        log.debug("客户端提前断开: {} {}", request.getMethod(), request.getRequestURI());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex,
                                                                 HttpServletRequest request) {
+        // 断连也可能被包在别的异常里（比如流式写出时的 IOException 链），一并降级
+        if (isClientAbort(ex)) {
+            log.debug("客户端提前断开: {} {}", request.getMethod(), request.getRequestURI());
+            return null;
+        }
         log.error("请求处理失败: {} {}", request.getMethod(), request.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "服务器内部错误"));
+    }
+
+    private static boolean isClientAbort(Throwable ex) {
+        for (Throwable t = ex; t != null && t != t.getCause(); t = t.getCause()) {
+            String name = t.getClass().getName();
+            if (name.equals("org.apache.catalina.connector.ClientAbortException")
+                    || name.equals("org.springframework.web.context.request.async.AsyncRequestNotUsableException")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
