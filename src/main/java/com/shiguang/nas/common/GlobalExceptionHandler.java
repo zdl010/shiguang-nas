@@ -24,8 +24,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> handleApi(ApiException ex) {
-        return ResponseEntity.status(ex.status())
-                .body(Map.of("error", ex.getMessage()));
+        return error(ex.status(), ex.getMessage());
     }
 
     /**
@@ -38,8 +37,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(org.springframework.security.authorization.AuthorizationDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied() {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", "没有权限"));
+        return error(HttpStatus.FORBIDDEN, "没有权限");
     }
 
     /**
@@ -52,15 +50,13 @@ public class GlobalExceptionHandler {
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Map<String, Object>> handleBadRequest(Exception ex) {
         log.debug("请求参数不合法: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("error", "请求参数不合法"));
+        return error(HttpStatus.BAD_REQUEST, "请求参数不合法");
     }
 
     /** 上传的文件超过 multipart 限制。默认会变成 500，对用户毫无指导意义。 */
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleTooLarge() {
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(Map.of("error", "分片过大，请刷新页面重试"));
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "分片过大，请刷新页面重试");
     }
 
     /**
@@ -75,15 +71,13 @@ public class GlobalExceptionHandler {
             org.springframework.web.servlet.resource.NoResourceFoundException.class,
             org.springframework.web.servlet.NoHandlerFoundException.class})
     public ResponseEntity<Map<String, Object>> handleNotFound() {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("error", "接口不存在"));
+        return error(HttpStatus.NOT_FOUND, "接口不存在");
     }
 
     /** 方法不对（比如对只支持 POST 的接口发 GET）。同样不该记成服务端错误。 */
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleMethodNotAllowed() {
-        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(Map.of("error", "请求方法不支持"));
+        return error(HttpStatus.METHOD_NOT_ALLOWED, "请求方法不支持");
     }
 
     /**
@@ -114,8 +108,23 @@ public class GlobalExceptionHandler {
             return null;
         }
         log.error("请求处理失败: {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "服务器内部错误"));
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误");
+    }
+
+
+    /**
+     * 统一构造错误响应。
+     *
+     * <p><b>必须显式写 Content-Type。</b>不写的话，Spring 会沿用响应上已有的类型——
+     * 而静态资源出错时那个类型已经是 {@code text/javascript} 或 {@code image/jpeg} 了，
+     * 没有任何消息转换器能把 Map 按那种类型写出去，于是异常处理器<b>自己</b>抛出
+     * {@code No converter for [ImmutableCollections$Map1] with preset Content-Type}，
+     * 真正的错误反而被这条二次失败盖住。
+     */
+    private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
+        return ResponseEntity.status(status)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(Map.of("error", message));
     }
 
     private static boolean isClientAbort(Throwable ex) {
