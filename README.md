@@ -78,6 +78,14 @@
   <img src="phone_profile.png" width="270" alt="扫码连接与设置" />
 </p>
 
+> **Linux 用户注意**：包里带了 ffmpeg，但它链接了系统的音频/图形库。
+> 精简过的服务器镜像上如果启动后缩略图一直生不出来，装一下就好：
+>
+> ```bash
+> sudo apt install libasound2t64 libpulse0 libxcb1 libxcb-shm0   # Debian / Ubuntu
+> sudo dnf install alsa-lib pulseaudio-libs libxcb               # Fedora / RHEL
+> ```
+
 ### 首次启动要注意的三件事
 
 **Windows 防火墙**——首次启动会弹提示，**必须勾选「专用网络」**。

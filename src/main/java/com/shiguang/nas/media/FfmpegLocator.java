@@ -96,21 +96,50 @@ public class FfmpegLocator {
 
         prepareCacheDir();
 
-        String path = switch (name) {
-            case "ffmpeg" -> org.bytedeco.javacpp.Loader.load(org.bytedeco.ffmpeg.ffmpeg.class);
-            case "ffprobe" -> org.bytedeco.javacpp.Loader.load(org.bytedeco.ffmpeg.ffprobe.class);
-            default -> throw new IllegalArgumentException(name);
-        };
-        // Loader.load 解压失败时返回 null 而不是抛异常（缓存目录不可写、被删掉、
-        // 平台 classifier 没打进包都会这样）。不拦下来的话，下一行 Path.of(null)
-        // 抛出的 NPE 完全看不出是 ffmpeg 的问题。
-        if (path == null) {
-            throw new IllegalStateException(
-                    "无法从依赖中解出 " + name + "。检查缓存目录 " + cacheDir + " 是否可写，"
-                            + "以及构建时是否带上了当前平台的 javacpp.platform classifier。");
-        }
+        Path path = extractExecutable(name);
         log.info("已就绪 {}: {}", name, path);
-        return Path.of(path);
+        return path;
+    }
+
+
+    /**
+     * 从依赖里解出 ffmpeg / ffprobe 可执行文件。
+     *
+     * <p><b>刻意不用 {@code Loader.load(ffmpeg.class)}</b>。那个方法看起来更正规，
+     * 但 {@code org.bytedeco.ffmpeg.ffmpeg} 上标着
+     * {@code @Properties(inherit = {avdevice.class, ...})}，于是它会顺着继承链
+     * 把 avdevice 等一整套 <b>JNI 绑定</b>也加载起来。而我们全程用子进程调命令行
+     * （见 {@link FfmpegRunner}），一个 JNI 绑定都用不上——白白多出七个可能加载失败的点。
+     * 无头 Linux 上它就是这么炸的：{@code no jniavdevice in java.library.path}。
+     *
+     * <p>但也不能只解出那一个可执行文件：它动态链接了同目录下的
+     * {@code libavdevice} / {@code libavcodec} 等，少一个就 dyld/ld 报错起不来。
+     * 所以这里解压<b>整个平台目录</b>，只是不去 load 其中任何一个动态库。
+     */
+    private Path extractExecutable(String name) {
+        String platform = org.bytedeco.javacpp.Loader.getPlatform();
+        String resource = "/org/bytedeco/ffmpeg/" + platform + "/";
+        try {
+            java.io.File[] dirs = org.bytedeco.javacpp.Loader.cacheResources(resource);
+            if (dirs == null || dirs.length == 0) {
+                throw new IllegalStateException(
+                        "依赖里没有 " + resource + "。构建时可能没带上当前平台（" + platform
+                                + "）的 javacpp.platform classifier。");
+            }
+            java.io.File exe = new java.io.File(dirs[0], exeName(name));
+            if (!exe.isFile()) {
+                throw new IllegalStateException("解压出来的目录里没有 " + exe);
+            }
+            // 解压出的文件默认没有执行位。Loader.load 会代劳，这条路子得自己设。
+            if (!exe.canExecute() && !exe.setExecutable(true)) {
+                throw new IllegalStateException("无法给 " + exe + " 加上执行权限");
+            }
+            return exe.toPath();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(
+                    "无法从依赖中解出 " + name + "：" + e.getMessage()
+                            + "。检查缓存目录 " + cacheDir + " 是否可写。", e);
+        }
     }
 
     /**
